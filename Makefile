@@ -1,5 +1,5 @@
 APP := $(basename $(git remote get-url origin))
-REGISTRY := quay.io/vladklim
+REGISTRY := quay.io/vladklim/kbot
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null)-$(shell git rev-parse --short HEAD)
 TARGETOS ?= linux
 TARGETARCH ?= arm64
