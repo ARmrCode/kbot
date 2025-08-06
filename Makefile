@@ -4,7 +4,7 @@ VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null)-$(shell git rev-p
 TARGETOS ?= linux
 TARGETARCH ?= arm64
 
-.PHONY: format lint get test build linux macos macos-arm windows image push buildx clean clean-image
+.PHONY: format lint get test build linux macos macos-arm windows image push clean clean-image
 
 format:
 	gofmt -s -w ./
@@ -41,13 +41,6 @@ image:
 
 push:
 	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
-
-buildx:
-	docker buildx build \
-		--platform linux/amd64,linux/arm64,windows/amd64 \
-		--push \
-		--tag ${REGISTRY}/${APP}:${VERSION} \
-		.
 
 clean:
 	rm -rf kbot
