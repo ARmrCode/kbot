@@ -1,6 +1,6 @@
-APP := $(notdir $(basename $(git remote get-url origin)))
+APP := $(shell basename -s .git $(shell git remote get-url origin))
 REGISTRY := quay.io/vladklim/kbot
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null)-$(shell git rev-parse --short HEAD)
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-$(shell git rev-parse --short HEAD)
 TARGETOS ?= linux
 TARGETARCH ?= arm64
 
