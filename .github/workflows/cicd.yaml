@@ -43,12 +43,24 @@ jobs:
           git push https://armrcode:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:develop || echo "No changes to push"
 
 
-      - name: Sync ArgoCD app
-        uses: clowdhaus/argo-cd-action@v1.7.0
+      - name: Set up kubectl
+        uses: actions/setup-kubectl@v3
         with:
-          version: v2.9.3
-          command: app sync kbot
-          options: --prune
-        env:
-          ARGOCD_SERVER: https://34.116.140.53:30151
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          version: '1.30.0'
+
+      - name: Set up Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" > kubeconfig
+          export KUBECONFIG=$(pwd)/kubeconfig
+
+      - name: Port-forward ArgoCD server
+        run: |
+          kubectl -n argocd port-forward svc/argocd-server 8080:443 &
+          sleep 5
+
+      - name: Sync ArgoCD app via CLI
+        run: |
+          argocd --insecure \
+                 --server localhost:8080 \
+                 --auth-token ${{ secrets.ARGOCD_AUTH_TOKEN }} \
+                 app sync kbot --prune
