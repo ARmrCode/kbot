@@ -1,0 +1,23 @@
+replicaCount: 1
+
+image:
+  repository: klimik
+  tag: v1.1.0-1843648
+  pullPolicy: IfNotPresent
+  arch: amd64
+
+secret:
+  name: kbot
+  tokenName: TELE_TOKEN
+  tokenKey: token
+
+service:
+  type: ClusterIP
+  port: 8080
+
+serviceAccount:
+  create: true
+  name: ""
+
+ingress:
+  enabled: false
