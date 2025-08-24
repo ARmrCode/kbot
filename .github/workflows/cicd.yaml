@@ -1,0 +1,53 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build binary
+        run: make linux
+
+      - name: Build and push Docker image
+        run: |
+          make image
+          make push
+
+      - name: Update Helm values.yaml
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-$(git rev-parse --short HEAD)
+          yq -i ".image.tag = \"${VERSION}\"" helm/values.yaml
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add helm/values.yaml
+          git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes"
+          git push
+
+      - name: Sync ArgoCD app
+        uses: clowdhaus/argo-cd-action@v1.7.0
+        with:
+          version: v2.9.3
+          command: app sync kbot
+          options: --prune
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}

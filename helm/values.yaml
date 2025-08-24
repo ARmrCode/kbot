@@ -1,9 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: klimik
-  tag: v1.1.0-1843648
+  registry: ghcr.io
+  repository: armrcode/kbot
+  tag: v0.0.0
   pullPolicy: IfNotPresent
+  os: linux
   arch: amd64
 
 secret:
