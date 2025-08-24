@@ -43,24 +43,30 @@ jobs:
           git push https://armrcode:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:develop || echo "No changes to push"
 
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
+      - name: Install kubectl
+        run: |
+         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+         chmod +x kubectl
+         sudo mv kubectl /usr/local/bin/
 
       - name: Set up Kubeconfig
+        run: echo "${{ secrets.KUBECONFIG }}" > kubeconfig
+        env:
+          KUBECONFIG: ${{ github.workspace }}/kubeconfig
+
+      - name: Install ArgoCD CLI
         run: |
-          echo "${{ secrets.KUBECONFIG }}" > kubeconfig
-          export KUBECONFIG=$(pwd)/kubeconfig
+         curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+         chmod +x /usr/local/bin/argocd
 
       - name: Port-forward ArgoCD server
         run: |
-          kubectl -n argocd port-forward svc/argocd-server 8080:443 &
-          sleep 5
+         kubectl -n argocd port-forward svc/argocd-server 8080:443 &
+         sleep 20
 
       - name: Sync ArgoCD app via CLI
         run: |
-          argocd --insecure \
-                 --server localhost:8080 \
-                 --auth-token ${{ secrets.ARGOCD_AUTH_TOKEN }} \
-                 app sync kbot --prune
+         argocd --insecure \
+                --server localhost:8080 \
+                --auth-token ${{ secrets.ARGOCD_AUTH_TOKEN }} \
+                app sync kbot --prune
