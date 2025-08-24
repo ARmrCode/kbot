@@ -43,13 +43,13 @@ jobs:
           git push https://armrcode:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:develop || echo "No changes to push"
 
 
-      - name: Sync ArgoCD app
-        uses: clowdhaus/argo-cd-action@v1.7.0
-        with:
-          version: v2.9.3
-          command: app sync kbot
-          options: --prune --insecure
-        env:
-          ARGOCD_SERVER: https://34.116.140.53:443
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+     # - name: Sync ArgoCD app
+      #  uses: clowdhaus/argo-cd-action@v1.7.0
+      #  with:
+       #   version: v2.9.3
+       #   command: app sync kbot
+      #    options: --prune --insecure
+       # env:
+       #   ARGOCD_SERVER: https://34.116.140.53:443
+       #   ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
       
