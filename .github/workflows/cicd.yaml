@@ -50,5 +50,5 @@ jobs:
           command: app sync kbot
           options: --prune
         env:
-          ARGOCD_SERVER: 34.116.140.53
+          ARGOCD_SERVER: https://34.116.140.53:30151
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
