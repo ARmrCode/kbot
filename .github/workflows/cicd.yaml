@@ -48,8 +48,8 @@ jobs:
         with:
           version: v2.9.3
           command: app sync kbot
-          options: --prune
+          options: --prune --insecure
         env:
-          ARGOCD_SERVER: https://34.116.140.53
+          ARGOCD_SERVER: https://34.116.140.53:443
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
       
