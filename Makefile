@@ -1,5 +1,5 @@
 APP := $(shell basename -s .git $(shell git remote get-url origin))
-REGISTRY := ghcr.io/armrcode
+REGISTRY := ghcr.io/armrcode/kbot
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-$(shell git rev-parse --short HEAD)
 TARGETOS ?= linux
 TARGETARCH ?= arm64
