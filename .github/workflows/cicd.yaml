@@ -59,7 +59,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }}
 
       - name: Build and push Docker image
         run: make image push TARGETOS=${{ env.TARGETOS }} TARGETARCH=${{ env.TARGETARCH }}
@@ -71,7 +71,7 @@ jobs:
           git config user.email github-actions@github.com
           git add helm/values.yaml
           git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
-          git push || echo "No changes to push"
+          git push https://${{ secrets.GHCR_PAT }}@github.com/ARmrCode/kbot.git HEAD:develop
 
       - name: Cleanup
         run: make clean TARGETARCH=${{ env.TARGETARCH }}
