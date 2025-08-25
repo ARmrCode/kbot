@@ -1,6 +1,6 @@
-APP := $(shell git remote get-url origin | sed -E 's/.*[:\/](.*)\.git/\1/' | tr '[:upper:]' '[:lower:]')
-REGISTRY := klimik
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-$(shell git rev-parse --short HEAD)
+APP := kbot
+REGISTRY := ghcr.io/armrcode
+VERSION := $(shell git describe --tags --abbrev=0)-$(shell git rev-parse --short HEAD)
 TARGETOS ?= linux
 TARGETARCH ?= amd64
 
