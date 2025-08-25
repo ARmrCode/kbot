@@ -1,25 +1,20 @@
 replicaCount: 1
-
 image:
   registry: ghcr.io
   repository: armrcode/kbot
-  tag: v1.0.0-652731d
+  tag: v1.0.0-a0cd887
   pullPolicy: IfNotPresent
   os: linux
   arch: amd64
-
 secret:
   name: kbot
   tokenName: TELE_TOKEN
   tokenKey: token
-
 service:
   type: ClusterIP
   port: 8080
-
 serviceAccount:
   create: true
   name: ""
-
 ingress:
   enabled: false
