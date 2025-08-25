@@ -2,9 +2,9 @@ APP := $(shell basename -s .git $(shell git remote get-url origin))
 REGISTRY := ghcr.io/armrcode
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-$(shell git rev-parse --short HEAD)
 TARGETOS ?= linux
-TARGETARCH ?= arm64
+TARGETARCH ?= amd64
 
-.PHONY: format lint get test build linux macos macos-arm windows image push clean clean-image
+.PHONY: format lint get test build linux macos macos-arm windows image push clean
 
 format:
 	gofmt -s -w ./
@@ -18,12 +18,10 @@ get:
 test:
 	go test -v ./...
 
-build: format
-ifeq (${TARGETOS},windows)
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v -o kbot.exe -ldflags "-X=github.com/ARmrCode/kbot/cmd.appVersion=${VERSION}"
-else
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v -o kbot -ldflags "-X=github.com/ARmrCode/kbot/cmd.appVersion=${VERSION}"
-endif
+build: format get
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v \
+		-o kbot \
+		-ldflags "-X=github.com/ARmrCode/kbot/cmd.appVersion=${VERSION}"
 
 linux:
 	${MAKE} TARGETOS=linux TARGETARCH=amd64 build
@@ -41,15 +39,13 @@ image:
 	docker build \
 		--build-arg TARGETOS=${TARGETOS} \
 		--build-arg TARGETARCH=${TARGETARCH} \
-		. -t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
+		. -t ${REGISTRY}/${APP}:${VERSION}-${TARGETOS}-${TARGETARCH}
 
 push:
-	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
+	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETOS}-${TARGETARCH}
 
 clean:
 	rm -rf kbot kbot.exe
-	-docker rmi ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
+	-docker rmi ${REGISTRY}/${APP}:${VERSION}-${TARGETOS}-${TARGETARCH}
 
-clean-image:
-	-docker rmi ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
 	

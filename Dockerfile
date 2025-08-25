@@ -19,4 +19,4 @@ WORKDIR /
 COPY --from=builder /app/kbot /kbot
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-ENTRYPOINT ["/kbot"]
+ENTRYPOINT ["/kbot", "start"]
