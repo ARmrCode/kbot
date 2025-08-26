@@ -106,7 +106,7 @@ spec:
         stage('Update Helm Chart') {
             steps {
                 container('golang') {
-                    withCredentials([string(credentialsId: 'ghcr_pat', variable: 'CR_PAT')]) {
+                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
                             VERSION=$(cat .image_version)
                             echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
