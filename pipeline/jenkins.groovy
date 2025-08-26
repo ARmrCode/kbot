@@ -134,7 +134,8 @@ spec:
 
                         VERSION=$(cat .image_version)
                         echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
-                        yq -i ".image.tag = \"${VERSION}\" | .image.arch = \"${ARCH}\"" helm/values.yaml
+                        yq -i ".image.tag = \"${VERSION}\"" helm/values.yaml
+                        yq -i ".image.arch = \"${ARCH}\"" helm/values.yaml
 
                         git config user.name "jenkins"
                         git config user.email "jenkins@local"
