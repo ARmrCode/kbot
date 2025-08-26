@@ -138,8 +138,8 @@ spec:
                         echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
 
                         # Обновляем Helm values.yaml
-                        yq eval ".image.tag = \"${VERSION}\"" -i helm/values.yaml
-                        yq eval ".image.arch = \"${ARCH}\"" -i helm/values.yaml
+                        yq eval ".image.tag = strenv(VERSION)" --inplace helm/values.yaml
+                        yq eval ".image.arch = strenv(ARCH)" --inplace helm/values.yaml
 
                         git config user.name "jenkins"
                         git config user.email "jenkins@local"
