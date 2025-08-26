@@ -125,16 +125,23 @@ spec:
                 container('golang') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
-                            VERSION=$(cat .image_version)
-                            echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
-                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${ARCH}\\"" helm/values.yaml
+                        # Устанавливаем yq, если его нет
+                        if ! command -v yq &> /dev/null; then
+                        echo "Installing yq..."
+                        curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+                        chmod +x /usr/local/bin/yq
+                        fi
 
-                            git config user.name "jenkins"
-                            git config user.email "jenkins@local"
-                            git add helm/values.yaml
-                            git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
-                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
-                        '''
+                        VERSION=$(cat .image_version)
+                        echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
+                        yq -i ".image.tag = \"${VERSION}\" | .image.arch = \"${ARCH}\"" helm/values.yaml
+
+                        git config user.name "jenkins"
+                        git config user.email "jenkins@local"
+                        git add helm/values.yaml
+                        git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
+                        git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
+                    '''
                     }
                 }
             }
