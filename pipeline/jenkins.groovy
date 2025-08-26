@@ -14,23 +14,40 @@ spec:
     - cat
     tty: true
     volumeMounts:
-    - mountPath: /home/jenkins/agent
-      name: workspace-volume
+      - mountPath: /home/jenkins/agent
+        name: workspace-volume
   - name: docker
     image: docker:27.2.0-dind
-    privileged: true
     command:
     - dockerd-entrypoint.sh
-    tty: true
+    args:
+    - --host=tcp://0.0.0.0:2375
+    - --host=unix:///var/run/docker.sock
+    securityContext:
+      privileged: true
     env:
-    - name: DOCKER_TLS_CERTDIR
-      value: ""
+      - name: DOCKER_TLS_CERTDIR
+        value: ""
     volumeMounts:
-    - mountPath: /home/jenkins/agent
-      name: workspace-volume
+      - mountPath: /var/run/docker.sock
+        name: docker-sock
+      - mountPath: /home/jenkins/agent
+        name: workspace-volume
+  - name: jnlp
+    image: jenkins/inbound-agent:3327.v868139a_d00e0-6
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+    volumeMounts:
+      - mountPath: /home/jenkins/agent
+        name: workspace-volume
   volumes:
-  - name: workspace-volume
-    emptyDir: {}
+    - name: workspace-volume
+      emptyDir: {}
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
 """
         }
     }
@@ -93,7 +110,7 @@ spec:
                             echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
                             docker buildx create --use --name multiarch || true
                             docker buildx build \
-                                --platform linux/amd64,linux/arm64 \
+                                --platform linux/${ARCH} \
                                 -t $IMAGE:$VERSION \
                                 -t $IMAGE:latest \
                                 --push .
