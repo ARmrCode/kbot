@@ -1,5 +1,21 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'golang-agent'
+            defaultContainer 'golang'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: golang
+    image: golang:1.23
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
 
     parameters {
         choice(name: 'OS', choices: ['linux', 'darwin', 'windows'], description: 'Target OS')
@@ -21,23 +37,10 @@ pipeline {
             }
         }
 
-        stage('Set up Go') {
-            steps {
-                sh '''
-                echo "Setting up Go 1.23"
-                curl -LO https://golang.org/dl/go1.23.linux-amd64.tar.gz
-                sudo tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
-                export PATH=$PATH:/usr/local/go/bin
-                go version
-                '''
-            }
-        }
-
         stage('Lint') {
-            when { expression { return !params.SKIP_LINT } }
+            when { expression { !params.SKIP_LINT } }
             steps {
                 sh '''
-                echo "Running golangci-lint"
                 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
                 ./bin/golangci-lint run --timeout=5m
                 '''
@@ -45,7 +48,7 @@ pipeline {
         }
 
         stage('Test') {
-            when { expression { return !params.SKIP_TESTS } }
+            when { expression { !params.SKIP_TESTS } }
             steps {
                 sh 'go test ./...'
             }
@@ -60,7 +63,10 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 script {
-                    VERSION = sh(script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)', returnStdout: true).trim()
+                    VERSION = sh(
+                        script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)',
+                        returnStdout: true
+                    ).trim()
                     echo "Using version: ${VERSION}"
                 }
 
