@@ -1,5 +1,21 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'golang-agent'
+            defaultContainer 'golang'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: golang
+    image: golang:1.23
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
 
     parameters {
         choice(name: 'OS', choices: ['linux', 'darwin', 'windows'], description: 'Target OS')
@@ -19,20 +35,6 @@ pipeline {
             steps {
                 checkout scm
                 sh "git config --global --add safe.directory '${env.WORKSPACE}'"
-            }
-        }
-
-        stage('Set up Go') {
-            steps {
-                container('golang') {
-                    sh '''
-                        echo "Setting up Go 1.23"
-                        curl -LO https://golang.org/dl/go1.23.linux-amd64.tar.gz
-                        tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
-                        export PATH=$PATH:/usr/local/go/bin
-                        go version
-                    '''
-                }
             }
         }
 
@@ -57,10 +59,13 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Binary') {
             steps {
                 container('golang') {
-                    sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH} -ldflags '-X=github.com/ARmrCode/kbot/cmd.appVersion=-' "
+                    sh '''
+                        echo "Building binary for ${TARGETOS}/${TARGETARCH}"
+                        GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build
+                    '''
                 }
             }
         }
@@ -88,10 +93,6 @@ pipeline {
                             git push https://${GHCR_TOKEN}@github.com/ARmrCode/kbot.git HEAD:main
                         '''
                     }
-                }
-
-                container('golang') {
-                    sh "make clean TARGETARCH=${TARGETARCH}"
                 }
             }
         }
