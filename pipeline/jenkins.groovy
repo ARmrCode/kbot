@@ -13,45 +13,60 @@ spec:
     command:
     - cat
     tty: true
+    volumeMounts:
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
+  - name: docker
+    image: docker:27.2.0
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+    - mountPath: /var/run/docker.sock
+      name: docker-sock
+  volumes:
+  - name: workspace-volume
+    emptyDir: {}
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
 """
         }
     }
 
     parameters {
-        choice(name: 'OS', choices: ['linux', 'darwin', 'windows'], description: 'Target OS')
+        choice(name: 'OS', choices: ['linux'], description: 'Target OS')
         choice(name: 'ARCH', choices: ['amd64', 'arm64'], description: 'Target architecture')
-        booleanParam(name: 'SKIP_LINT', defaultValue: false, description: 'Skip running linter')
-        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip running tests')
     }
 
     environment {
-        CGO_ENABLED = '0'
-        TARGETOS = "${params.OS}"
-        TARGETARCH = "${params.ARCH}"
+        DOCKER_CLI_EXPERIMENTAL = "enabled"
+        DOCKER_BUILDKIT = "1"
+        REGISTRY = "ghcr.io"
+        REPO = "armrcode/kbot"
+        IMAGE = "${env.REGISTRY}/${env.REPO}"
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
                 checkout scm
-                sh "git config --global --add safe.directory '${env.WORKSPACE}'"
+                sh 'git config --global --add safe.directory ${WORKSPACE}'
             }
         }
 
         stage('Lint') {
-            when { expression { return !params.SKIP_LINT } }
             steps {
                 container('golang') {
                     sh '''
-                        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-                        ./bin/golangci-lint run --timeout=5m -v -buildvcs=false
+                        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
+                        ./bin/golangci-lint run --timeout=5m -v
                     '''
                 }
             }
         }
 
         stage('Test') {
-            when { expression { return !params.SKIP_TESTS } }
             steps {
                 container('golang') {
                     sh 'go test ./...'
@@ -62,35 +77,45 @@ spec:
         stage('Build Binary') {
             steps {
                 container('golang') {
-                    sh '''
-                        echo "Building binary for ${TARGETOS}/${TARGETARCH}"
-                        GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build
-                    '''
+                    sh "make build TARGETOS=${params.OS} TARGETARCH=${params.ARCH}"
                 }
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                script {
-                    VERSION = sh(
-                        script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)',
-                        returnStdout: true
-                    ).trim()
-                    echo "Using version: ${VERSION}"
-                }
-
-                withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'GHCR_TOKEN')]) {
-                    container('golang') {
+                container('docker') {
+                    withCredentials([string(credentialsId: 'ghcr_pat', variable: 'CR_PAT')]) {
                         sh '''
-                            echo $GHCR_TOKEN | docker login ghcr.io -u $USER --password-stdin
-                            make image push TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}
-                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${TARGETARCH}\\"" helm/values.yaml
-                            git config user.name jenkins
-                            git config user.email jenkins@local
+                            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD))
+                            echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
+                            echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
+                            docker buildx create --use --name multiarch || true
+                            docker buildx build \
+                                --platform linux/${ARCH} \
+                                -t $IMAGE:$VERSION \
+                                -t $IMAGE:latest \
+                                --push .
+                            echo $VERSION > .image_version
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Update Helm Chart') {
+            steps {
+                container('golang') {
+                    withCredentials([string(credentialsId: 'ghcr_pat', variable: 'CR_PAT')]) {
+                        sh '''
+                            VERSION=$(cat .image_version)
+                            echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
+                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${ARCH}\\"" helm/values.yaml
+                            git config user.name "jenkins"
+                            git config user.email "jenkins@local"
                             git add helm/values.yaml
                             git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
-                            git push https://${GHCR_TOKEN}@github.com/ARmrCode/kbot.git HEAD:main
+                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
                         '''
                     }
                 }
