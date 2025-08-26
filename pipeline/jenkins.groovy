@@ -31,24 +31,30 @@ spec:
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        stage('Set safe Git directory') {
+            steps {
+                sh 'git config --global --add safe.directory "$WORKSPACE"'
+            }
+        }
+
         stage('Lint') {
-            when { expression { return !params.SKIP_LINT } }
+            when { expression { !params.SKIP_LINT } }
             steps {
                 sh '''
                 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-                ./bin/golangci-lint run --timeout=5m -v -E go
+                ./bin/golangci-lint run --timeout=5m -E gofmt
                 '''
             }
         }
 
         stage('Test') {
-            when { expression { return !params.SKIP_TESTS } }
+            when { expression { !params.SKIP_TESTS } }
             steps {
                 sh 'go test ./...'
             }
@@ -56,17 +62,19 @@ spec:
 
         stage('Build') {
             steps {
-                sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}"
+                sh '''
+                GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v \
+                    -o kbot -ldflags "-X=github.com/ARmrCode/kbot/cmd.appVersion=-" \
+                    -buildvcs=false
+                '''
             }
         }
 
         stage('Docker Build & Push') {
             steps {
                 script {
-                    def gitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    def latestTag = sh(script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-' + gitHash, returnStdout: true).trim()
-                    env.VERSION = latestTag
-                    echo "Using version: ${env.VERSION}"
+                    VERSION = sh(script: "git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)", returnStdout: true).trim()
+                    echo "Using version: ${VERSION}"
                 }
 
                 withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'GHCR_TOKEN')]) {
