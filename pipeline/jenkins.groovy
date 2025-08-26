@@ -98,6 +98,7 @@ spec:
             steps {
                 container('docker') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
+                        withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
                         sh '''
                             # Добавляем безопасную директорию внутри контейнера
                             git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
@@ -118,6 +119,7 @@ spec:
                                 --push .
                             echo $VERSION > .image_version
                         '''
+                        }
                     }
                 }
             }
@@ -127,33 +129,35 @@ spec:
             steps {
                 container('golang') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
-                        sh '''
-                        # Устанавливаем yq, если его нет
-                        if ! command -v yq &> /dev/null; then
-                        echo "Installing yq..."
-                        curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
-                        chmod +x /usr/local/bin/yq
-                        fi
+                        withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
+                            sh '''
+                            # Устанавливаем yq, если его нет
+                            if ! command -v yq &> /dev/null; then
+                            echo "Installing yq..."
+                            curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+                            chmod +x /usr/local/bin/yq
+                            fi
 
-                        VERSION=$(cat .image_version)
-                        OS=linux
-                        ARCH=${TARGETARCH:-amd64}
+                            VERSION=$(cat .image_version)
+                            OS=linux
+                            ARCH=${TARGETARCH:-amd64}
 
-                        FULL_TAG="${VERSION}-${OS}-${ARCH}"
+                            FULL_TAG="${VERSION}-${OS}-${ARCH}"
 
-                        echo "Updating helm/values.yaml with tag ${FULL_TAG} and arch ${ARCH}"
+                            echo "Updating helm/values.yaml with tag ${FULL_TAG} and arch ${ARCH}"
 
-                        # Обновляем Helm values.yaml
-                        yq eval ".image.tag = strenv(FULL_TAG)" --inplace helm/values.yaml
-                        yq eval ".image.arch = strenv(ARCH)" --inplace helm/values.yaml
+                            # Обновляем Helm values.yaml
+                            yq eval ".image.tag = strenv(FULL_TAG)" --inplace helm/values.yaml
+                            yq eval ".image.arch = strenv(ARCH)" --inplace helm/values.yaml
 
-                        git config user.name "jenkins"
-                        git config user.email "jenkins@local"
-                        git add helm/values.yaml
-                        git commit -m "Update Helm image tag to ${FULL_TAG} for arch ${ARCH}" || echo "No changes to commit"
-                        git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
-                        '''
-                    }
+                            git config user.name "jenkins"
+                            git config user.email "jenkins@local"
+                            git add helm/values.yaml
+                            git commit -m "Update Helm image tag to ${FULL_TAG} for arch ${ARCH}" || echo "No changes to commit"
+                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
+                            '''
+                        }
+                    }   
                 }
             }
         }
