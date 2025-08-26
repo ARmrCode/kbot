@@ -1,6 +1,3 @@
-Вот твой pipeline без комментариев:
-
-```groovy
 pipeline {
     agent any
 
@@ -40,7 +37,6 @@ pipeline {
             when { expression { return !params.SKIP_LINT } }
             steps {
                 sh '''
-                echo "Running golangci-lint"
                 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
                 ./bin/golangci-lint run --timeout=5m
                 '''
@@ -63,7 +59,7 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 script {
-                    VERSION = sh(script: "git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)", returnStdout: true).trim()
+                    def VERSION = sh(script: "git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)", returnStdout: true).trim()
                     echo "Using version: ${VERSION}"
                 }
 
@@ -85,4 +81,3 @@ pipeline {
         }
     }
 }
-```
