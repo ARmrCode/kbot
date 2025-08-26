@@ -2,10 +2,12 @@ pipeline {
     agent {
         kubernetes {
             label 'golang-agent'
-            defaultContainer 'golang'
             yaml """
 apiVersion: v1
 kind: Pod
+metadata:
+  labels:
+    jenkins/label: golang-agent
 spec:
   containers:
   - name: golang
@@ -18,13 +20,13 @@ spec:
       name: workspace-volume
   - name: docker
     image: docker:27.2.0-dind
+    securityContext:
+      privileged: true
     command:
     - dockerd-entrypoint.sh
     args:
-    - "--host=tcp://0.0.0.0:2375"
-    - "--host=unix:///var/run/docker.sock"
-    securityContext:
-      privileged: true
+    - --host=tcp://0.0.0.0:2375
+    - --host=unix:///var/run/docker.sock
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -46,69 +48,61 @@ spec:
         }
     }
 
-    parameters {
-        choice(name: 'OS', choices: ['linux'], description: 'Target OS')
-        choice(name: 'ARCH', choices: ['amd64', 'arm64'], description: 'Target architecture')
-    }
-
     environment {
-        DOCKER_CLI_EXPERIMENTAL = "enabled"
-        DOCKER_BUILDKIT = "1"
-        REGISTRY = "ghcr.io"
-        REPO = "armrcode/kbot"
-        IMAGE = "${env.REGISTRY}/${env.REPO}"
+        TARGETOS = 'linux'
+        TARGETARCH = 'amd64'
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
                 checkout scm
-                sh 'git config --global --add safe.directory ${WORKSPACE}'
+                sh 'git config --global --add safe.directory $(pwd)'
             }
         }
 
         stage('Lint') {
-            steps {
-                container('golang') {
+            container('golang') {
+                steps {
                     sh '''
-                        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
-                        ./bin/golangci-lint run --timeout=5m -v
+                    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
+                    ./bin/golangci-lint run --timeout=5m -v
                     '''
                 }
             }
         }
 
         stage('Test') {
-            steps {
-                container('golang') {
+            container('golang') {
+                steps {
                     sh 'go test ./...'
                 }
             }
         }
 
         stage('Build Binary') {
-            steps {
-                container('golang') {
-                    sh "make build TARGETOS=${params.OS} TARGETARCH=${params.ARCH}"
+            container('golang') {
+                steps {
+                    sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}"
                 }
             }
         }
 
         stage('Docker Build & Push') {
-            steps {
-                container('docker') {
-                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
+            container('docker') {
+                withCredentials([string(credentialsId: 'CR_PAT', variable: 'CR_PAT')]) {
+                    steps {
                         sh '''
-                            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD))
-                            echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
-                            echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
-                            docker buildx create --use --name multiarch || true
-                            docker buildx build \
-                                --platform linux/${ARCH} \
-                                -t $IMAGE:$VERSION \
-                                -t $IMAGE:latest \
-                                --push .
-                            echo $VERSION > .image_version
+                        # Получаем краткий хэш текущего коммита
+                        COMMIT_HASH=$(git rev-parse --short HEAD)
+                        VERSION="v1.0.0-${COMMIT_HASH}"
+                        IMAGE="ghcr.io/armrcode/kbot:${VERSION}-${TARGETOS}-${TARGETARCH}"
+
+                        echo "Building image ${IMAGE}"
+
+                        docker login ghcr.io -u jenkins --password-stdin <<< "$CR_PAT"
+                        docker buildx create --use --name multiarch
+                        docker buildx build --platform ${TARGETOS}/${TARGETARCH} -t ${IMAGE} -t ghcr.io/armrcode/kbot:latest --push .
                         '''
                     }
                 }
@@ -116,22 +110,29 @@ spec:
         }
 
         stage('Update Helm Chart') {
-            steps {
-                container('golang') {
-                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
+            container('docker') {
+                withCredentials([string(credentialsId: 'CR_PAT', variable: 'CR_PAT')]) {
+                    steps {
                         sh '''
-                            VERSION=$(cat .image_version)
-                            echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
-                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${ARCH}\\"" helm/values.yaml
-                            git config user.name "jenkins"
-                            git config user.email "jenkins@local"
-                            git add helm/values.yaml
-                            git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
-                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
+                        COMMIT_HASH=$(git rev-parse --short HEAD)
+                        VERSION="v1.0.0-${COMMIT_HASH}"
+                        IMAGE="ghcr.io/armrcode/kbot:${VERSION}-${TARGETOS}-${TARGETARCH}"
+
+                        echo "Updating helm/values.yaml with tag ${VERSION} and arch ${TARGETARCH}"
+
+                        sed -i "s|^  tag:.*|  tag: ${VERSION}|" helm/values.yaml
+                        sed -i "s|^  arch:.*|  arch: ${TARGETARCH}|" helm/values.yaml
+                        sed -i "s|^  full:.*|  full: ${IMAGE}|" helm/values.yaml
                         '''
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished'
         }
     }
 }
