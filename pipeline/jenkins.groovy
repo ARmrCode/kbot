@@ -17,19 +17,20 @@ spec:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
   - name: docker
-    image: docker:27.2.0
+    image: docker:27.2.0-dind
+    privileged: true
     command:
-    - cat
+    - dockerd-entrypoint.sh
     tty: true
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
     volumeMounts:
-    - mountPath: /var/run/docker.sock
-      name: docker-sock
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   volumes:
   - name: workspace-volume
     emptyDir: {}
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
 """
         }
     }
@@ -92,7 +93,7 @@ spec:
                             echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
                             docker buildx create --use --name multiarch || true
                             docker buildx build \
-                                --platform linux/${ARCH} \
+                                --platform linux/amd64,linux/arm64 \
                                 -t $IMAGE:$VERSION \
                                 -t $IMAGE:latest \
                                 --push .
