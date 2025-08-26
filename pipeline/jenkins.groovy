@@ -133,16 +133,20 @@ spec:
                         fi
 
                         VERSION=$(cat .image_version)
+                        ARCH=${TARGETARCH:-amd64}
+
                         echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
-                        yq -i ".image.tag = \"${VERSION}\"" helm/values.yaml
-                        yq -i ".image.arch = \"${ARCH}\"" helm/values.yaml
+
+                        # Обновляем Helm values.yaml
+                        yq eval ".image.tag = \"${VERSION}\"" -i helm/values.yaml
+                        yq eval ".image.arch = \"${ARCH}\"" -i helm/values.yaml
 
                         git config user.name "jenkins"
                         git config user.email "jenkins@local"
                         git add helm/values.yaml
-                        git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
+                        git commit -m "Update Helm image tag to ${VERSION} for arch ${ARCH}" || echo "No changes to commit"
                         git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
-                    '''
+                        '''
                     }
                 }
             }
