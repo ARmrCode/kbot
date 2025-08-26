@@ -1,3 +1,6 @@
+Вот твой pipeline без комментариев:
+
+```groovy
 pipeline {
     agent any
 
@@ -82,3 +85,4 @@ pipeline {
         }
     }
 }
+```
