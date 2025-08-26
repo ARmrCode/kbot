@@ -1,5 +1,21 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'golang-agent'
+            defaultContainer 'golang'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: golang
+    image: golang:1.23
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
 
     parameters {
         choice(name: 'OS', choices: ['linux', 'darwin', 'windows'], description: 'Target OS')
@@ -15,45 +31,31 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Set up Go') {
-            steps {
-                sh '''
-                echo "Setting up Go 1.23"
-                curl -LO https://golang.org/dl/go1.23.linux-amd64.tar.gz
-                tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
-                export PATH=$PATH:/usr/local/go/bin
-                go version
-                '''
-            }
-        }
-
         stage('Lint') {
-            when { expression { !params.SKIP_LINT } }
+            when { expression { return !params.SKIP_LINT } }
             steps {
                 sh '''
-                export GOFLAGS="-buildvcs=false"
                 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-                ./bin/golangci-lint run --timeout=5m
+                ./bin/golangci-lint run --timeout=5m -v -E go
                 '''
             }
         }
 
         stage('Test') {
-            when { expression { !params.SKIP_TESTS } }
+            when { expression { return !params.SKIP_TESTS } }
             steps {
-                sh 'go test -buildvcs=false ./...'
+                sh 'go test ./...'
             }
         }
 
         stage('Build') {
             steps {
-                sh "go build -buildvcs=false -o bin/myapp ./..."
                 sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}"
             }
         }
@@ -61,8 +63,10 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 script {
-                    VERSION = sh(script: "git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)", returnStdout: true).trim()
-                    echo "Using version: ${VERSION}"
+                    def gitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    def latestTag = sh(script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-' + gitHash, returnStdout: true).trim()
+                    env.VERSION = latestTag
+                    echo "Using version: ${env.VERSION}"
                 }
 
                 withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'GHCR_TOKEN')]) {
