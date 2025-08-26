@@ -99,9 +99,13 @@ spec:
                 container('docker') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
+                            # Добавляем безопасную директорию внутри контейнера
+                            git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
+
                             COMMIT_HASH=$(git rev-parse --short HEAD)
                             VERSION="v1.0.0-${COMMIT_HASH}"
                             echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
+
                             echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
                             docker buildx create --use --name multiarch || true
                             docker buildx build \
@@ -123,14 +127,8 @@ spec:
                         sh '''
                             VERSION=$(cat .image_version)
                             echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
-                            # Проверяем, что yq установлен
-                            if ! command -v yq &> /dev/null
-                            then
-                                echo "Installing yq..."
-                                wget https://github.com/mikefarah/yq/releases/download/v4.39.3/yq_linux_amd64 -O /usr/local/bin/yq
-                                chmod +x /usr/local/bin/yq
-                            fi
-                            yq -i ".image.tag = \"${VERSION}\" | .image.arch = \"${ARCH}\"" helm/values.yaml
+                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${ARCH}\\"" helm/values.yaml
+
                             git config user.name "jenkins"
                             git config user.email "jenkins@local"
                             git add helm/values.yaml
