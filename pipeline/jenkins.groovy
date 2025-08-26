@@ -85,7 +85,7 @@ spec:
         stage('Docker Build & Push') {
             steps {
                 container('docker') {
-                    withCredentials([string(credentialsId: 'ghcr_pat', variable: 'CR_PAT')]) {
+                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
                             VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD))
                             echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
