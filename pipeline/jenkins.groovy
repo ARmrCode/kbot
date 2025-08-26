@@ -2,12 +2,10 @@ pipeline {
     agent {
         kubernetes {
             label 'golang-agent'
+            defaultContainer 'golang'
             yaml """
 apiVersion: v1
 kind: Pod
-metadata:
-  labels:
-    jenkins/label: golang-agent
 spec:
   containers:
   - name: golang
@@ -20,13 +18,13 @@ spec:
       name: workspace-volume
   - name: docker
     image: docker:27.2.0-dind
-    securityContext:
-      privileged: true
     command:
     - dockerd-entrypoint.sh
     args:
-    - --host=tcp://0.0.0.0:2375
-    - --host=unix:///var/run/docker.sock
+    - "--host=tcp://0.0.0.0:2375"
+    - "--host=unix:///var/run/docker.sock"
+    securityContext:
+      privileged: true
     env:
     - name: DOCKER_TLS_CERTDIR
       value: ""
@@ -48,61 +46,70 @@ spec:
         }
     }
 
+    parameters {
+        choice(name: 'OS', choices: ['linux'], description: 'Target OS')
+        choice(name: 'ARCH', choices: ['amd64', 'arm64'], description: 'Target architecture')
+    }
+
     environment {
-        TARGETOS = 'linux'
-        TARGETARCH = 'amd64'
+        DOCKER_CLI_EXPERIMENTAL = "enabled"
+        DOCKER_BUILDKIT = "1"
+        REGISTRY = "ghcr.io"
+        REPO = "armrcode/kbot"
+        IMAGE = "${env.REGISTRY}/${env.REPO}"
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
                 checkout scm
-                sh 'git config --global --add safe.directory $(pwd)'
+                sh 'git config --global --add safe.directory ${WORKSPACE}'
             }
         }
 
         stage('Lint') {
-            container('golang') {
-                steps {
+            steps {
+                container('golang') {
                     sh '''
-                    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
-                    ./bin/golangci-lint run --timeout=5m -v
+                        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
+                        ./bin/golangci-lint run --timeout=5m -v
                     '''
                 }
             }
         }
 
         stage('Test') {
-            container('golang') {
-                steps {
+            steps {
+                container('golang') {
                     sh 'go test ./...'
                 }
             }
         }
 
         stage('Build Binary') {
-            container('golang') {
-                steps {
-                    sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}"
+            steps {
+                container('golang') {
+                    sh "make build TARGETOS=${params.OS} TARGETARCH=${params.ARCH}"
                 }
             }
         }
 
         stage('Docker Build & Push') {
-            container('docker') {
-                withCredentials([string(credentialsId: 'CR_PAT', variable: 'CR_PAT')]) {
-                    steps {
+            steps {
+                container('docker') {
+                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
-                        # Получаем краткий хэш текущего коммита
-                        COMMIT_HASH=$(git rev-parse --short HEAD)
-                        VERSION="v1.0.0-${COMMIT_HASH}"
-                        IMAGE="ghcr.io/armrcode/kbot:${VERSION}-${TARGETOS}-${TARGETARCH}"
-
-                        echo "Building image ${IMAGE}"
-
-                        docker login ghcr.io -u jenkins --password-stdin <<< "$CR_PAT"
-                        docker buildx create --use --name multiarch
-                        docker buildx build --platform ${TARGETOS}/${TARGETARCH} -t ${IMAGE} -t ghcr.io/armrcode/kbot:latest --push .
+                            COMMIT_HASH=$(git rev-parse --short HEAD)
+                            VERSION="v1.0.0-${COMMIT_HASH}"
+                            echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
+                            echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
+                            docker buildx create --use --name multiarch || true
+                            docker buildx build \
+                                --platform linux/${ARCH} \
+                                -t $IMAGE:$VERSION \
+                                -t $IMAGE:latest \
+                                --push .
+                            echo $VERSION > .image_version
                         '''
                     }
                 }
@@ -110,29 +117,29 @@ spec:
         }
 
         stage('Update Helm Chart') {
-            container('docker') {
-                withCredentials([string(credentialsId: 'CR_PAT', variable: 'CR_PAT')]) {
-                    steps {
+            steps {
+                container('golang') {
+                    withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         sh '''
-                        COMMIT_HASH=$(git rev-parse --short HEAD)
-                        VERSION="v1.0.0-${COMMIT_HASH}"
-                        IMAGE="ghcr.io/armrcode/kbot:${VERSION}-${TARGETOS}-${TARGETARCH}"
-
-                        echo "Updating helm/values.yaml with tag ${VERSION} and arch ${TARGETARCH}"
-
-                        sed -i "s|^  tag:.*|  tag: ${VERSION}|" helm/values.yaml
-                        sed -i "s|^  arch:.*|  arch: ${TARGETARCH}|" helm/values.yaml
-                        sed -i "s|^  full:.*|  full: ${IMAGE}|" helm/values.yaml
+                            VERSION=$(cat .image_version)
+                            echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
+                            # Проверяем, что yq установлен
+                            if ! command -v yq &> /dev/null
+                            then
+                                echo "Installing yq..."
+                                wget https://github.com/mikefarah/yq/releases/download/v4.39.3/yq_linux_amd64 -O /usr/local/bin/yq
+                                chmod +x /usr/local/bin/yq
+                            fi
+                            yq -i ".image.tag = \"${VERSION}\" | .image.arch = \"${ARCH}\"" helm/values.yaml
+                            git config user.name "jenkins"
+                            git config user.email "jenkins@local"
+                            git add helm/values.yaml
+                            git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
+                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
                         '''
                     }
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            echo 'Pipeline finished'
         }
     }
 }
