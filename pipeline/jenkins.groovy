@@ -103,7 +103,10 @@ spec:
                             git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
 
                             COMMIT_HASH=$(git rev-parse --short HEAD)
-                            VERSION="v1.0.0-${COMMIT_HASH}"
+                            OS=linux
+                            ARCH=${TARGETARCH:-amd64}
+                            VERSION="v1.0.0-${COMMIT_HASH}-${OS}-${ARCH}"
+
                             echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
 
                             echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
@@ -133,18 +136,21 @@ spec:
                         fi
 
                         VERSION=$(cat .image_version)
+                        OS=linux
                         ARCH=${TARGETARCH:-amd64}
 
-                        echo "Updating helm/values.yaml with tag ${VERSION} and arch ${ARCH}"
+                        FULL_TAG="${VERSION}-${OS}-${ARCH}"
+
+                        echo "Updating helm/values.yaml with tag ${FULL_TAG} and arch ${ARCH}"
 
                         # Обновляем Helm values.yaml
-                        yq eval ".image.tag = strenv(VERSION)" --inplace helm/values.yaml
+                        yq eval ".image.tag = strenv(FULL_TAG)" --inplace helm/values.yaml
                         yq eval ".image.arch = strenv(ARCH)" --inplace helm/values.yaml
 
                         git config user.name "jenkins"
                         git config user.email "jenkins@local"
                         git add helm/values.yaml
-                        git commit -m "Update Helm image tag to ${VERSION} for arch ${ARCH}" || echo "No changes to commit"
+                        git commit -m "Update Helm image tag to ${FULL_TAG} for arch ${ARCH}" || echo "No changes to commit"
                         git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
                         '''
                     }
