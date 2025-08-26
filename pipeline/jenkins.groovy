@@ -14,40 +14,34 @@ spec:
     - cat
     tty: true
     volumeMounts:
-      - mountPath: /home/jenkins/agent
-        name: workspace-volume
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   - name: docker
     image: docker:27.2.0-dind
     command:
     - dockerd-entrypoint.sh
     args:
-    - --host=tcp://0.0.0.0:2375
-    - --host=unix:///var/run/docker.sock
+    - "--host=tcp://0.0.0.0:2375"
+    - "--host=unix:///var/run/docker.sock"
     securityContext:
       privileged: true
     env:
-      - name: DOCKER_TLS_CERTDIR
-        value: ""
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
     volumeMounts:
-      - mountPath: /var/run/docker.sock
-        name: docker-sock
-      - mountPath: /home/jenkins/agent
-        name: workspace-volume
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   - name: jnlp
-    image: jenkins/inbound-agent:3327.v868139a_d00e0-6
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
+    image: jenkins/inbound-agent:latest
+    env:
+    - name: JENKINS_AGENT_WORKDIR
+      value: /home/jenkins/agent
     volumeMounts:
-      - mountPath: /home/jenkins/agent
-        name: workspace-volume
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   volumes:
-    - name: workspace-volume
-      emptyDir: {}
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
+  - name: workspace-volume
+    emptyDir: {}
 """
         }
     }
