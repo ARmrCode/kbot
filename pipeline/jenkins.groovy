@@ -1,21 +1,5 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'golang-agent'
-            defaultContainer 'golang'
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: golang
-    image: golang:1.23
-    command:
-    - cat
-    tty: true
-"""
-        }
-    }
+    agent any
 
     parameters {
         choice(name: 'OS', choices: ['linux', 'darwin', 'windows'], description: 'Target OS')
@@ -31,66 +15,84 @@ spec:
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
                 checkout scm
+                sh "git config --global --add safe.directory '${env.WORKSPACE}'"
             }
         }
 
-        stage('Set safe Git directory') {
+        stage('Set up Go') {
             steps {
-                sh 'git config --global --add safe.directory "$WORKSPACE"'
+                container('golang') {
+                    sh '''
+                        echo "Setting up Go 1.23"
+                        curl -LO https://golang.org/dl/go1.23.linux-amd64.tar.gz
+                        tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
+                        export PATH=$PATH:/usr/local/go/bin
+                        go version
+                    '''
+                }
             }
         }
 
         stage('Lint') {
-            when { expression { !params.SKIP_LINT } }
+            when { expression { return !params.SKIP_LINT } }
             steps {
-                sh '''
-                curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
-                ./bin/golangci-lint run --timeout=5m -E gofmt
-                '''
+                container('golang') {
+                    sh '''
+                        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s latest
+                        ./bin/golangci-lint run --timeout=5m -v -buildvcs=false
+                    '''
+                }
             }
         }
 
         stage('Test') {
-            when { expression { !params.SKIP_TESTS } }
+            when { expression { return !params.SKIP_TESTS } }
             steps {
-                sh 'go test ./...'
+                container('golang') {
+                    sh 'go test ./...'
+                }
             }
         }
 
         stage('Build') {
             steps {
-                sh '''
-                GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 go build -v \
-                    -o kbot -ldflags "-X=github.com/ARmrCode/kbot/cmd.appVersion=-" \
-                    -buildvcs=false
-                '''
+                container('golang') {
+                    sh "make build TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH} -ldflags '-X=github.com/ARmrCode/kbot/cmd.appVersion=-' "
+                }
             }
         }
 
         stage('Docker Build & Push') {
             steps {
                 script {
-                    VERSION = sh(script: "git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)", returnStdout: true).trim()
+                    VERSION = sh(
+                        script: 'git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0-$(git rev-parse --short HEAD)',
+                        returnStdout: true
+                    ).trim()
                     echo "Using version: ${VERSION}"
                 }
 
                 withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'GHCR_TOKEN')]) {
-                    sh '''
-                    echo $GHCR_TOKEN | docker login ghcr.io -u $USER --password-stdin
-                    make image push TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}
-                    yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${TARGETARCH}\\"" helm/values.yaml
-                    git config user.name jenkins
-                    git config user.email jenkins@local
-                    git add helm/values.yaml
-                    git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
-                    git push https://${GHCR_TOKEN}@github.com/ARmrCode/kbot.git HEAD:main
-                    '''
+                    container('golang') {
+                        sh '''
+                            echo $GHCR_TOKEN | docker login ghcr.io -u $USER --password-stdin
+                            make image push TARGETOS=${TARGETOS} TARGETARCH=${TARGETARCH}
+                            yq -i ".image.tag = \\"${VERSION}\\" | .image.arch = \\"${TARGETARCH}\\"" helm/values.yaml
+                            git config user.name jenkins
+                            git config user.email jenkins@local
+                            git add helm/values.yaml
+                            git commit -m "Update Helm image tag to ${VERSION}" || echo "No changes to commit"
+                            git push https://${GHCR_TOKEN}@github.com/ARmrCode/kbot.git HEAD:main
+                        '''
+                    }
                 }
 
-                sh "make clean TARGETARCH=${TARGETARCH}"
+                container('golang') {
+                    sh "make clean TARGETARCH=${TARGETARCH}"
+                }
             }
         }
     }
