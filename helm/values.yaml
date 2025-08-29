@@ -5,7 +5,7 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
   os: linux
-  arch: arm64
+  arch: amd64
 secret:
   name: kbot
   tokenName: TELE_TOKEN
