@@ -99,26 +99,26 @@ spec:
                 container('docker') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                        // withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
-                        sh """
-                            set -e
-                            git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
+                    sh """
+                        set -e -o pipefail
+                        git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
 
-                            COMMIT_HASH=$(git rev-parse --short HEAD)
-                            OS=${params.OS}
-                            ARCH=${params.ARCH}
-                            VERSION="v1.0.0-\${COMMIT_HASH}-\${OS}-\${ARCH}"
+                        COMMIT_HASH=\$(git rev-parse --short HEAD)
+                        OS=${params.OS}
+                        ARCH=${params.ARCH}
+                        VERSION="v1.0.0-\${COMMIT_HASH}-\${OS}-\${ARCH}"
 
-                            echo "Building image \$IMAGE:\$VERSION for \${OS}/\${ARCH}"
+                        echo "Building image \$IMAGE:\$VERSION for \${OS}/\${ARCH}"
 
-                            echo \$CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
-                            docker buildx create --use --name multiarch || true
-                            docker buildx build \
-                                --platform linux/\${ARCH} \
-                                -t \$IMAGE:\$VERSION \
-                                -t \$IMAGE:latest \
-                                --push .
-                            echo \$VERSION > .image_version
-                        """
+                        echo \$CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
+                        docker buildx create --use --name multiarch || true
+                        docker buildx build \
+                            --platform linux/\${ARCH} \
+                            -t \$IMAGE:\$VERSION \
+                            -t \$IMAGE:latest \
+                            --push .
+                        echo \$VERSION > .image_version
+                    """
                       //  }
                     }
                 }
