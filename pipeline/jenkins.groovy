@@ -110,7 +110,7 @@ spec:
 
                         echo "Building image \$IMAGE:\$VERSION for \${OS}/\${ARCH}"
 
-                        echo \$CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
+                        echo \$CR_PAT | docker login ghcr.io -u "\${GITHUB_ACTOR:-jenkins}" --password-stdin
                         docker buildx create --use --name multiarch || true
                         docker buildx build \
                             --platform linux/\${ARCH} \
