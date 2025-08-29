@@ -138,11 +138,11 @@ spec:
                             chmod +x /usr/local/bin/yq
                             fi
 
-                            VERSION=$(cat .image_version)
+                            VERSION=\$(cat .image_version)
                             OS=${params.OS}
                             ARCH=${params.ARCH}
 
-                            FULL_TAG="${VERSION}"
+                            FULL_TAG="\${VERSION}"
 
                             echo "Updating helm/values.yaml with tag \${FULL_TAG} and arch \${ARCH}"
 
