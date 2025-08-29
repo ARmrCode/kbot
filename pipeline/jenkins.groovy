@@ -131,7 +131,7 @@ spec:
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         // withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
                             sh """
-                            set -e -o pipefail 
+                            set -eu
                             if ! command -v yq &> /dev/null; then
                             echo "Installing yq..."
                             curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
