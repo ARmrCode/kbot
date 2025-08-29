@@ -104,8 +104,8 @@ spec:
                             git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
 
                             COMMIT_HASH=$(git rev-parse --short HEAD)
-                            OS=linux
-                            ARCH=${TARGETARCH:-amd64}
+                            OS=${params.OS}
+                            ARCH=${params.ARCH}
                             VERSION="v1.0.0-${COMMIT_HASH}-${OS}-${ARCH}"
 
                             echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
@@ -139,8 +139,8 @@ spec:
                             fi
 
                             VERSION=$(cat .image_version)
-                            OS=linux
-                            ARCH=${TARGETARCH:-amd64}
+                            OS=${params.OS}
+                            ARCH=${params.ARCH}
 
                             FULL_TAG="${VERSION}-${OS}-${ARCH}"
 
