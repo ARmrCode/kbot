@@ -99,26 +99,26 @@ spec:
                 container('docker') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                        // withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
-                        sh '''
-                            # Добавляем безопасную директорию внутри контейнера
+                        sh """
+                            set -e
                             git config --global --add safe.directory /home/jenkins/agent/workspace/Pipeline_demo
 
                             COMMIT_HASH=$(git rev-parse --short HEAD)
                             OS=${params.OS}
                             ARCH=${params.ARCH}
-                            VERSION="v1.0.0-${COMMIT_HASH}-${OS}-${ARCH}"
+                            VERSION="v1.0.0-\${COMMIT_HASH}-\${OS}-\${ARCH}"
 
-                            echo "Building image $IMAGE:$VERSION for ${OS}/${ARCH}"
+                            echo "Building image \$IMAGE:\$VERSION for \${OS}/\${ARCH}"
 
-                            echo $CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
+                            echo \$CR_PAT | docker login ghcr.io -u ${GITHUB_ACTOR:-jenkins} --password-stdin
                             docker buildx create --use --name multiarch || true
                             docker buildx build \
-                                --platform linux/${ARCH} \
-                                -t $IMAGE:$VERSION \
-                                -t $IMAGE:latest \
+                                --platform linux/\${ARCH} \
+                                -t \$IMAGE:\$VERSION \
+                                -t \$IMAGE:latest \
                                 --push .
-                            echo $VERSION > .image_version
-                        '''
+                            echo \$VERSION > .image_version
+                        """
                       //  }
                     }
                 }
@@ -130,21 +130,21 @@ spec:
                 container('golang') {
                     withCredentials([string(credentialsId: 'GHCR_PAT', variable: 'CR_PAT')]) {
                         // withEnv(["TARGETARCH=${params.TARGETARCH}"]) {
-                            sh '''
-                            # Устанавливаем yq, если его нет
+                            sh """
+                            set -e -o pipefail 
                             if ! command -v yq &> /dev/null; then
                             echo "Installing yq..."
                             curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
                             chmod +x /usr/local/bin/yq
                             fi
 
-                            VERSION=$(cat .image_version)
+                            VERSION=\$(cat .image_version)
                             OS=${params.OS}
                             ARCH=${params.ARCH}
 
-                            FULL_TAG="${VERSION}-${OS}-${ARCH}"
+                            FULL_TAG="\${VERSION}-\${OS}-\${ARCH}"
 
-                            echo "Updating helm/values.yaml with tag ${FULL_TAG} and arch ${ARCH}"
+                            echo "Updating helm/values.yaml with tag \${FULL_TAG} and arch \${ARCH}"
 
                             # Обновляем Helm values.yaml
                             yq eval ".image.tag = strenv(FULL_TAG)" --inplace helm/values.yaml
@@ -153,9 +153,9 @@ spec:
                             git config user.name "jenkins"
                             git config user.email "jenkins@local"
                             git add helm/values.yaml
-                            git commit -m "Update Helm image tag to ${FULL_TAG} for arch ${ARCH}" || echo "No changes to commit"
-                            git push https://$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
-                            '''
+                            git commit -m "Update Helm image tag to \${FULL_TAG} for arch \${ARCH}" || echo "No changes to commit"
+                            git push https://\$CR_PAT@github.com/ARmrCode/kbot.git HEAD:main
+                            """
                         // }
                     }   
                 }
