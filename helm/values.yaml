@@ -2,7 +2,7 @@ replicaCount: 1
 image:
   registry: ghcr.io
   repository: armrcode/kbot
-  tag: v1.0.0-ee19d7b
+  tag: v1.0.0-932d50d
   pullPolicy: IfNotPresent
   os: linux
   arch: ""
