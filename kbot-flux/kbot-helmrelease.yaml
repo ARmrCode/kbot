@@ -17,7 +17,7 @@ spec:
     image:
       registry: ghcr.io
       repository: armrcode/kbot
-      tag: v1.0.0-91a1eab-linux-amd64
+      tag: ""
       pullPolicy: IfNotPresent
     replicaCount: 1
     ingress:

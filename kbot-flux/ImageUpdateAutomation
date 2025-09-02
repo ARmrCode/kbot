@@ -1,0 +1,21 @@
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: kbot
+  namespace: flux-system
+spec:
+  interval: 1m
+  git:
+    checkout:
+      ref:
+        branch: develop
+    commit:
+      author:
+        email: flux@yourdomain.com
+        name: flux
+      messageTemplate: 'Update KBot image to {{ .NewTag }}'
+    push:
+      branch: develop
+  update:
+    strategy: Setters
+    path: ./kbot-flux/kbot-helmrelease.yaml
