@@ -17,7 +17,7 @@ spec:
     image:
       registry: ghcr.io
       repository: armrcode/kbot
-      tag: v1.0.0-932d50d
+      tag: v1.0.0-91a1eab-linux-amd64
       pullPolicy: IfNotPresent
     replicaCount: 1
     ingress:
@@ -45,3 +45,5 @@ spec:
       name: kbot
       tokenKey: token
       tokenName: TELE_TOKEN
+  imagePullSecrets:
+    - name: ghcr-secret
