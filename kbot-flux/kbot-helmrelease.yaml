@@ -1,4 +1,4 @@
-apiVersion: helm.toolkit.fluxcd.io/v2beta1
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: kbot
@@ -12,8 +12,9 @@ spec:
         kind: GitRepository
         name: kbot
         namespace: flux-system
+      version: "*"
+      reconcileStrategy: ChartVersion
   values:
-    replicaCount: 1
     image:
       registry: ghcr.io
       repository: armrcode/kbot
@@ -21,15 +22,29 @@ spec:
       pullPolicy: IfNotPresent
       os: linux
       arch: ""
+    replicaCount: 1
+    ingress:
+      enabled: false
+    service:
+      type: ClusterIP
+      port: 8080
+    podSecurityContext:
+      fsGroup: 1000
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+    securityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault
+      runAsNonRoot: true
+    serviceAccount:
+      create: true
+      name: kbot
     secret:
       name: kbot
       tokenName: TELE_TOKEN
       tokenKey: token
-    service:
-      type: ClusterIP
-      port: 8080
-    serviceAccount:
-      create: true
-      name: ""
-    ingress:
-      enabled: false
