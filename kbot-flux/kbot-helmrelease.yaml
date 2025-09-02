@@ -1,4 +1,4 @@
-apiVersion: helm.toolkit.fluxcd.io/v2
+apiVersion: v2
 kind: HelmRelease
 metadata:
   name: kbot
@@ -13,38 +13,78 @@ spec:
         name: kbot
         namespace: flux-system
       version: "*"
-      reconcileStrategy: ChartVersion
   values:
     image:
       registry: ghcr.io
       repository: armrcode/kbot
-      tag: latest
-      pullPolicy: IfNotPresent
+      tag: v0.0.0 # Будет обновляться автоматически через ImagePolicy
       os: linux
-      arch: ""
+      arch: amd64
+      pullPolicy: IfNotPresent
     replicaCount: 1
     ingress:
       enabled: false
     service:
       type: ClusterIP
       port: 8080
-    podSecurityContext:
-      fsGroup: 1000
-      runAsUser: 1000
-      runAsGroup: 1000
-      runAsNonRoot: true
+    secret:
+      name: kbot
+      tokenKey: token
+      tokenName: TELE_TOKEN
     securityContext:
-      readOnlyRootFilesystem: true
       allowPrivilegeEscalation: false
       capabilities:
-        drop: ["ALL"]
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
       seccompProfile:
         type: RuntimeDefault
-      runAsNonRoot: true
+    podSecurityContext:
+      fsGroup: 1000
+      runAsGroup: 1000
+      runAsUser: 1000
     serviceAccount:
       create: true
       name: kbot
-    secret:
-      name: kbot
-      tokenName: TELE_TOKEN
-      tokenKey: token
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: kbot-repo
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: ghcr.io/armrcode/kbot
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: kbot-policy
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: kbot-repo
+  policy:
+    semver:
+      range: ">=1.0.0"
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: kbot-update
+  namespace: flux-system
+spec:
+  interval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: kbot
+    namespace: flux-system
+  git:
+    checkout:
+      ref: main
+    commit:
+      authorName: flux
+      authorEmail: flux@example.com
+    push:
+      branch: main
