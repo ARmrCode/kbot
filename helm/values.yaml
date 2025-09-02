@@ -2,10 +2,10 @@ replicaCount: 1
 image:
   registry: ghcr.io
   repository: armrcode/kbot
-  tag: v1.0.0-3f89e81
+  tag: v1.0.0-35a745a
   pullPolicy: IfNotPresent
   os: linux
-  arch: amd64
+  arch: ""
 secret:
   name: kbot
   tokenName: TELE_TOKEN
