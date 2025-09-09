@@ -16,7 +16,8 @@ variables:
 
 workflow:
   rules:
-    - when: manual
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - when: never
 
 lint:
   stage: lint
