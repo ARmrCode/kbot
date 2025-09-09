@@ -1,0 +1,72 @@
+stages:
+  - lint
+  - test
+  - build
+  - docker
+  - helm
+
+variables:
+  DOCKER_CLI_EXPERIMENTAL: "enabled"
+  DOCKER_BUILDKIT: "1"
+  REGISTRY: "ghcr.io"
+  REPO: "armrcode/kbot"
+  IMAGE: "$REGISTRY/$REPO"
+  OS: "linux"
+  ARCH: "amd64"
+
+workflow:
+  rules:
+    - when: manual
+
+lint:
+  stage: lint
+  image: golang:1.23
+  script:
+    - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.60.3
+    - ./bin/golangci-lint run --timeout=5m -v
+
+test:
+  stage: test
+  image: golang:1.23
+  script:
+    - go test ./...
+
+build_binary:
+  stage: build
+  image: golang:1.23
+  script:
+    - echo "Building for OS=$OS ARCH=$ARCH"
+    - make build TARGETOS=$OS TARGETARCH=$ARCH
+
+docker_build_push:
+  stage: docker
+  image: docker:27.2.0-dind
+  services:
+    - docker:27.2.0-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - COMMIT_HASH=$(git rev-parse --short HEAD)
+    - VERSION="v1.0.0-$COMMIT_HASH-$OS-$ARCH"
+    - echo "$GHCR_PAT" | docker login ghcr.io -u "$GITLAB_USER_LOGIN" --password-stdin
+    - docker buildx create --use --name multiarch || true
+    - docker buildx build --platform linux/$ARCH -t $IMAGE:$VERSION -t $IMAGE:latest --push .
+    - echo $VERSION > .image_version
+
+update_helm:
+  stage: helm
+  image: golang:1.23
+  script:
+    - if ! command -v yq &> /dev/null; then
+        curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq;
+        chmod +x /usr/local/bin/yq;
+      fi
+    - VERSION=$(cat .image_version)
+    - yq eval ".image.tag = strenv(VERSION)" --inplace helm/values.yaml
+    - yq eval ".image.arch = strenv(ARCH)" --inplace helm/values.yaml
+    - git config user.name "gitlab-ci"
+    - git config user.email "gitlab-ci@example.com"
+    - git add helm/values.yaml
+    - git commit -m "Update Helm image tag to $VERSION" || echo "No changes to commit"
+    - git push https://$GHCR_PAT@github.com/ARmrCode/kbot.git HEAD:main
