@@ -17,7 +17,15 @@ variables:
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
-    - when: never
+      variables:
+        OS:
+          description: "Select OS"
+          value: "linux"
+          options: ["linux", "windows"]
+        ARCH:
+          description: "Select ARCH"
+          value: "amd64"
+          options: ["amd64", "arm64"]
 
 lint:
   stage: lint
