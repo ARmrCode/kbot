@@ -54,7 +54,11 @@ docker_build_push:
     - docker buildx create --use --name multiarch || true
     - docker buildx build --platform linux/$ARCH -t $IMAGE:$VERSION -t $IMAGE:latest --push .
     - echo $VERSION > .image_version
-
+  artifacts:
+    paths:
+      - .image_version
+    expire_in: 1 hour
+    
 update_helm:
   stage: helm
   image: golang:1.23
