@@ -1,0 +1,2 @@
+config:
+  existingConfigMap: loki-config

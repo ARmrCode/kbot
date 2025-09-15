@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+  - name: otel-collector-config
+    files:
+      - otel-collector-contrib.yaml
+
+resources:
+  - otel-collector-deployment.yaml
