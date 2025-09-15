@@ -1,0 +1,39 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kustomizations.kustomize.toolkit.fluxcd.io
+spec:
+  group: kustomize.toolkit.fluxcd.io
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              properties:
+                interval:
+                  type: string
+              required:
+                - interval
+          required:
+            - apiVersion
+            - kind
+            - metadata
+            - spec
+  scope: Namespaced
+  names:
+    plural: kustomizations
+    singular: kustomization
+    kind: Kustomization
+    shortNames:
+      - kustom

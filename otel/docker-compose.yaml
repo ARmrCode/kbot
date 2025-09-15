@@ -1,58 +1,40 @@
 version: "3"
 services:
-
-  # Kbot
-  kbot:
-    image: ARmrCode/kbot:v1.0.0-otel
-    environment:
-      - METRICS_HOST=collector:4317
-      - TELE_TOKEN=${TELE_TOKEN}
-
-  # OTEL contrib collector for Laki
-  collector:
+  otel-collector:
     image: otel/opentelemetry-collector-contrib:0.78.0
-    command: [--config=/etc/otel-collector-config.yaml]
     volumes:
-      - ./collector/otel-collector-contrib.yaml:/etc/otel-collector-config.yaml 
+      - ./otel/otel-collector-contrib.yaml:/etc/otel-collector-config.yaml
     ports:
       - 4317:4317
 
-  # Prom
   prometheus:
     image: prom/prometheus:latest
-    command:
-      - --config.file=/etc/prometheus.yaml
-      - --web.enable-remote-write-receiver
-      - --enable-feature=exemplar-storage
     volumes:
-      - ./prometheus/prometheus.yaml:/etc/prometheus.yaml
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-  
-  # FluentBit
-  fluentbit:
+
+  fluent-bit:
     image: fluent/fluent-bit:latest
     volumes:
       - ./fluent-bit/docker-metadata.lua:/fluent-bit/bin/docker-metadata.lua
       - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
       - /var:/var
-      - /proc:/host/proc
-      - /sys:/host/sys
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
     ports:
       - "3001:3001"
 
-  # Loki
   loki:
     image: grafana/loki:2.8.2
-    command: 
+    command:
       - -config.file=/etc/loki/local-config.yaml
       - -log.level=error
     volumes:
       - ./loki/loki-local-config.yaml:/etc/loki/local-config.yaml
     ports:
       - "3100:3100"
-  
-  # Grafana
+
   grafana:
     image: grafana/grafana:9.4.3
     volumes:
