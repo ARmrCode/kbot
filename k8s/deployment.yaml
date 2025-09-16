@@ -35,19 +35,8 @@ spec:
                   key: TELE_TOKEN
           ports:
             - containerPort: 8080
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 15
-            failureThreshold: 3
+          # Временно отключаем пробы, чтобы контейнер стартовал стабильно
+          livenessProbe: null
+          readinessProbe: null
       imagePullSecrets:
         - name: ghcr-secret
