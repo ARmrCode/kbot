@@ -34,5 +34,17 @@ spec:
                 secretKeyRef:
                   name: kbot-secret
                   key: TELE_TOKEN
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
       imagePullSecrets:
         - name: ghcr-secret
