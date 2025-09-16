@@ -1,13 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: otel-collector
+  name: kbot-otel
   namespace: monitoring
 spec:
   selector:
-    app: otel-collector
+    app: kbot
   ports:
-    - protocol: TCP
-      port: 8889 
+    - name: prometheus
+      protocol: TCP
+      port: 8889
       targetPort: 8889
   type: ClusterIP
