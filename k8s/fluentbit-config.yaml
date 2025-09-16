@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kbot-fluentbit
-  namespace: monitoring
+  namespace: flux-system
 data:
   kbot.conf: |
     [INPUT]
