@@ -25,3 +25,5 @@ spec:
               value: "http://otel-collector.monitoring.svc.cluster.local:4317"
             - name: PROMETHEUS_PORT
               value: "8080"
+      imagePullSecrets:
+        - name: ghcr-secret
