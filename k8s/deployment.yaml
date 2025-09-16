@@ -18,6 +18,8 @@ spec:
       containers:
         - name: kbot
           image: ghcr.io/armrcode/kbot:v1.0.0-6e3b37d-linux-amd64
+          command: ["/kbot"]
+          args: ["start"]
           ports:
             - containerPort: 8080
           env:
@@ -34,18 +36,8 @@ spec:
                 secretKeyRef:
                   name: kbot-secret
                   key: TELE_TOKEN
-          # Временно отключаем проверки, чтобы контейнер не падал
-          #livenessProbe:
-          #  httpGet:
-          #    path: /health
-          #    port: 8080
-          #  initialDelaySeconds: 10
-          #  periodSeconds: 20
-          #readinessProbe:
-          #  httpGet:
-          #    path: /health
-          #    port: 8080
-          #  initialDelaySeconds: 5
-          #  periodSeconds: 10
+          # Пропускаем liveness/readiness, пока контейнер не стартует стабильно
+          livenessProbe: null
+          readinessProbe: null
       imagePullSecrets:
         - name: ghcr-secret
