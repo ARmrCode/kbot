@@ -25,5 +25,10 @@ spec:
               value: "http://otel-collector.monitoring.svc.cluster.local:4317"
             - name: PROMETHEUS_PORT
               value: "8080"
+            - name: TELE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kbot-secret
+                  key: TELE_TOKEN
       imagePullSecrets:
         - name: ghcr-secret
