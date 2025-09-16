@@ -15,20 +15,19 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:0.85.0
+          image: otel/opentelemetry-collector-contrib:0.80.0
+          args: ["--config=/etc/otel-collector/otel-collector-config.yaml"]
           ports:
             - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
             - containerPort: 8889
+              name: prometheus
           volumeMounts:
-            - name: config
-              mountPath: /etc/otel-collector-config
-              readOnly: true
-              subPath: otel-collector-config.yaml
-              subPathExpr: otel-collector-config.yaml
-          command:
-            - "/otelcontribcol"
-            - "--config=/etc/otel-collector-config/otel-collector-config.yaml"
+            - name: otel-config
+              mountPath: /etc/otel-collector   # монтируем весь ConfigMap как папку
       volumes:
-        - name: config
+        - name: otel-config
           configMap:
             name: otel-collector-config
