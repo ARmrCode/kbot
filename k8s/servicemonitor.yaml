@@ -1,16 +1,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: kbot
+  name: otel-collector
   namespace: monitoring
 spec:
   selector:
     matchLabels:
-      app: kbot
+      app: otel-collector
   namespaceSelector:
     matchNames:
-      - default
+      - monitoring
   endpoints:
-    - port: http
-      path: /metrics
+    - port: 8889
       interval: 30s
+      path: /metrics
