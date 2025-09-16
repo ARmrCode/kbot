@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kbot
+  namespace: monitoring
+  labels:
+    app: kbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kbot
+  template:
+    metadata:
+      labels:
+        app: kbot
+    spec:
+      containers:
+        - name: kbot
+          image: armrcode/kbot:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.monitoring.svc.cluster.local:4317"
+            - name: PROMETHEUS_PORT
+              value: "8080"
