@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kbot
-  namespace: flux-system
+  namespace: monitoring
 spec:
   selector:
     app: kbot
