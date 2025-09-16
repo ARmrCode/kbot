@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: kbot
-          image: armrcode/kbot:latest
+          image: ghcr.io/ARmrCode/kbot:latest
           ports:
             - containerPort: 8080
           env:
