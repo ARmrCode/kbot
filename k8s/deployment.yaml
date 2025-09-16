@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kbot
-  namespace: flux-system
+  namespace: monitoring
   labels:
     app: kbot
 spec:
