@@ -37,11 +37,10 @@ jobs:
           go-version: '1.23'
           cache: true
 
-      - name: Prepare dependencies
+      - name: Fix genproto version
         run: |
+          go get google.golang.org/genproto@v0.0.0-20250825161204-c5933d9347a5
           go mod tidy
-          go mod download
-          go build ./...  # Генерируем export data для golangci-lint
 
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
