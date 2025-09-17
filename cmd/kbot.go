@@ -1,3 +1,6 @@
+/*
+Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+*/
 package cmd
 
 import (
@@ -14,23 +17,23 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/exporters/prometheus/promhttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 )
 
 var (
-	// TELE_TOKEN для Telegram бота
-	TeleToken = os.Getenv("TELE_TOKEN")
-	// METRICS_HOST для OTLP метрик
+	TeleToken   = os.Getenv("TELE_TOKEN")
 	MetricsHost = os.Getenv("METRICS_HOST")
 )
 
-// Инициализация OpenTelemetry
+// Initialize OpenTelemetry
 func initMetrics(ctx context.Context) {
-	// OTLP метрики
+	// OTLP Metric exporter
 	if MetricsHost != "" {
-		exporter, err := otlpmetricgrpc.New(ctx,
+		exporter, err := otlpmetricgrpc.New(
+			ctx,
 			otlpmetricgrpc.WithEndpoint(MetricsHost),
 			otlpmetricgrpc.WithInsecure(),
 		)
@@ -43,61 +46,62 @@ func initMetrics(ctx context.Context) {
 				semconv.SchemaURL,
 				semconv.ServiceNameKey.String(fmt.Sprintf("kbot_%s", appVersion)),
 			)),
-			sdkmetric.WithReader(
-				sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(10*time.Second)),
-			),
+			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(10*time.Second))),
 		)
+
 		otel.SetMeterProvider(mp)
 	}
 
-	// Prometheus метрики
+	// Prometheus exporter
 	promExporter, err := prometheus.New(prometheus.WithoutUnits())
 	if err != nil {
 		log.Fatalf("Failed to create Prometheus exporter: %v", err)
 	}
 
-	// HTTP сервер для Prometheus
 	go func() {
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", promExporter)
+		mux.Handle("/metrics", promhttp.Handler(promExporter))
 		addr := ":8889"
 		log.Printf("Prometheus metrics available at %s/metrics", addr)
 		log.Fatal(http.ListenAndServe(addr, mux))
 	}()
 }
 
-// Функция для подсчета события по payload
+// Increment metric for payload
 func pmetrics(ctx context.Context, payload string) {
 	meter := otel.GetMeterProvider().Meter("kbot_light_signal_counter")
 	counter, _ := meter.Int64Counter(fmt.Sprintf("kbot_light_signal_%s", payload))
 	counter.Add(ctx, 1)
 }
 
-// kbotCmd — основная команда Cobra
+// kbotCmd represents the kbot command
 var kbotCmd = &cobra.Command{
 	Use:     "kbot",
 	Aliases: []string{"start"},
-	Short:   "Telegram bot с метриками OpenTelemetry",
+	Short:   "A brief description of your command",
 	Run: func(cmd *cobra.Command, args []string) {
 		kbot, err := telebot.NewBot(telebot.Settings{
+			URL:    "",
 			Token:  TeleToken,
 			Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 		})
 		if err != nil {
-			log.Fatalf("Please check TELE_TOKEN: %v", err)
+			log.Fatalf("Please check TELE_TOKEN env variable: %v", err)
 		}
 
-		log.Printf("kbot %s started", appVersion)
-
 		trafficSignal := map[string]map[string]int8{
-			"red":   {"pin": 12, "on": 0},
-			"amber": {"pin": 27, "on": 0},
-			"green": {"pin": 22, "on": 0},
+			"red":   {"pin": 12},
+			"amber": {"pin": 27},
+			"green": {"pin": 22},
+		}
+
+		for k := range trafficSignal {
+			trafficSignal[k]["on"] = 0
 		}
 
 		kbot.Handle(telebot.OnText, func(m telebot.Context) error {
 			payload := m.Message().Payload
-			log.Printf("Received payload: %s", payload)
+			log.Printf("Payload: %s", payload)
 
 			pmetrics(context.Background(), payload)
 
@@ -105,7 +109,11 @@ var kbotCmd = &cobra.Command{
 			case "hello":
 				return m.Send(fmt.Sprintf("Hello I'm Kbot %s!", appVersion))
 			case "red", "amber", "green":
-				trafficSignal[payload]["on"] ^= 1
+				if trafficSignal[payload]["on"] == 0 {
+					trafficSignal[payload]["on"] = 1
+				} else {
+					trafficSignal[payload]["on"] = 0
+				}
 				return m.Send(fmt.Sprintf("Switch %s light signal to %d", payload, trafficSignal[payload]["on"]))
 			default:
 				return m.Send("Usage: /s red|amber|green")
