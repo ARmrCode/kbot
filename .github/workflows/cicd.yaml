@@ -37,6 +37,12 @@ jobs:
           go-version: '1.23'
           cache: true
 
+      - name: Prepare dependencies
+        run: |
+          go mod tidy
+          go mod download
+          go build ./...  # Генерируем export data для golangci-lint
+
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
         with:
