@@ -1,76 +1,109 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"time"
+    "context"
+    "fmt"
+    "os"
+    "time"
 
-	"github.com/spf13/cobra"
-	telebot "gopkg.in/telebot.v3"
+    "github.com/spf13/cobra"
+    telebot "gopkg.in/telebot.v3"
+
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+    "go.opentelemetry.io/otel/exporters/prometheus"
+    sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+    "go.opentelemetry.io/otel/sdk/resource"
+    semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 )
 
 var (
-	// Teletoken bot
-	TeleToken = os.Getenv("TELE_TOKEN")
+    TeleToken   = os.Getenv("TELE_TOKEN")
+    MetricsHost = os.Getenv("METRICS_HOST") // OTLP gRPC endpoint
+    PromPort    = os.Getenv("PROM_PORT")    // Prometheus HTTP metrics port, например ":2222"
 )
 
-// kbotCmd represents the kbot command
+// Инициализация метрик OTLP + Prometheus
+func initMetrics(ctx context.Context) {
+    // OTLP gRPC экспортёр
+    otlpExporter, _ := otlpmetricgrpc.New(
+        ctx,
+        otlpmetricgrpc.WithEndpoint(MetricsHost),
+        otlpmetricgrpc.WithInsecure(),
+    )
+
+    // Prometheus экспортёр
+    promExporter, _ := prometheus.New(
+        prometheus.WithNamespace("kbot"),
+        prometheus.WithPort(PromPort),
+    )
+
+    res := resource.NewWithAttributes(
+        semconv.SchemaURL,
+        semconv.ServiceNameKey.String(fmt.Sprintf("kbot_%s", appVersion)),
+    )
+
+    meterProvider := sdkmetric.NewMeterProvider(
+        sdkmetric.WithResource(res),
+        sdkmetric.WithReader(
+            sdkmetric.NewPeriodicReader(otlpExporter, sdkmetric.WithInterval(10*time.Second)),
+        ),
+    )
+
+    // Установка глобального MeterProvider
+    otel.SetMeterProvider(meterProvider)
+
+    // Также Prometheus напрямую
+    go func() {
+        _ = promExporter.Serve()
+    }()
+}
+
+// Функция увеличения счетчиков
+func recordMetric(ctx context.Context, payload string) {
+    meter := otel.GetMeterProvider().Meter("kbot_metrics")
+    counter, _ := meter.Int64Counter(fmt.Sprintf("kbot_signal_%s", payload))
+    counter.Add(ctx, 1)
+}
+
+// Kbot command
 var kbotCmd = &cobra.Command{
-	Use:     "kbot",
-	Aliases: []string{"start"},
-	Short:   "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+    Use:   "kbot",
+    Short: "Telegram bot with metrics",
+    Run: func(cmd *cobra.Command, args []string) {
+        ctx := context.Background()
+        kbot, _ := telebot.NewBot(telebot.Settings{
+            Token:  TeleToken,
+            Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
+        })
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
+        trafficSignal := map[string]map[string]int8{
+            "red":   {"pin": 12, "on": 0},
+            "amber": {"pin": 27, "on": 0},
+            "green": {"pin": 22, "on": 0},
+        }
 
-		fmt.Printf("kbot %s started", appVersion)
+        kbot.Handle(telebot.OnText, func(m telebot.Context) error {
+            payload := m.Message().Payload
+            recordMetric(ctx, payload)
 
-		kbot, err := telebot.NewBot(telebot.Settings{
-			URL:    "",
-			Token:  TeleToken,
-			Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
-		})
+            switch payload {
+            case "hello":
+                return m.Send(fmt.Sprintf("Hello I'm Kbot %s!", appVersion))
+            case "red", "amber", "green":
+                trafficSignal[payload]["on"] ^= 1
+                return m.Send(fmt.Sprintf("Switch %s light signal to %d", payload, trafficSignal[payload]["on"]))
+            default:
+                return m.Send("Usage: /s red|amber|green")
+            }
+        })
 
-		if err != nil {
-			log.Fatalf("Please check TELE_TOKEN env variable. %s", err)
-			return
-		}
-
-		kbot.Handle(telebot.OnText, func(m telebot.Context) error {
-
-			log.Print(m.Message().Payload, m.Text())
-			payload := m.Message().Payload
-
-			switch payload {
-			case "hello":
-				err = m.Send(fmt.Sprintf("Hello I,m Kbot %s!", appVersion))
-			}
-			return err
-		})
-
-		kbot.Start()
-
-	},
+        kbot.Start()
+    },
 }
 
 func init() {
-	rootCmd.AddCommand(kbotCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// kbotCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// kbotCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+    ctx := context.Background()
+    initMetrics(ctx)
+    rootCmd.AddCommand(kbotCmd)
 }
