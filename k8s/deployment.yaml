@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: kbot
-          image: ghcr.io/armrcode/kbot:v1.0.0-6477a74-linux-arm64
+          image: ghcr.io/armrcode/kbot:v1.0.0-85bdc56-linux-arm64
           command: ["/kbot", "start"]
           env:
             - name: HOST
